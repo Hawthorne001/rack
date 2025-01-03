@@ -11,14 +11,12 @@ module Rack
   # responses according to the Rack spec.
 
   class Lint
+    ALLOWED_SCHEMES = %w(https http wss ws).freeze
+
     REQUEST_PATH_ORIGIN_FORM = /\A\/[^#]*\z/
     REQUEST_PATH_ABSOLUTE_FORM = /\A#{Utils::URI_PARSER.make_regexp}\z/
     REQUEST_PATH_AUTHORITY_FORM = /\A[^\/:]+:\d+\z/
     REQUEST_PATH_ASTERISK_FORM = '*'
-
-    def initialize(app)
-      @app = app
-    end
 
     # :stopdoc:
 
@@ -37,6 +35,12 @@ module Rack
     ##
     ## A Rack application is a Ruby object (not a class) that
     ## responds to +call+.
+    def initialize(app)
+      raise LintError, "app must respond to call" unless app.respond_to?(:call)
+
+      @app = app
+    end
+
     def call(env = nil)
       Wrapper.new(@app, env).response
     end
@@ -169,8 +173,8 @@ module Rack
         ## In addition to this, the Rack environment must include these
         ## Rack-specific variables:
 
-        ## <tt>rack.url_scheme</tt>:: +http+ or +https+, depending on the
-        ##                            request URL.
+        ## <tt>rack.url_scheme</tt>:: The scheme of the incoming request, must
+        ##                            be one of +http+, +https+, +ws+ or +wss+.
 
         ## <tt>rack.input</tt>:: See below, the input stream.
 
@@ -331,7 +335,7 @@ module Rack
         ## There are the following restrictions:
 
         ## * <tt>rack.url_scheme</tt> must either be +http+ or +https+.
-        unless %w[http https].include?(env[RACK_URL_SCHEME])
+        unless ALLOWED_SCHEMES.include?(env[RACK_URL_SCHEME])
           raise LintError, "rack.url_scheme unknown: #{env[RACK_URL_SCHEME].inspect}"
         end
 
@@ -405,11 +409,13 @@ module Rack
         end
 
         ## <tt>rack.response_finished</tt>:: An array of callables run by the server after the response has been
-        ## processed. This would typically be invoked after sending the response to the client, but it could also be
-        ## invoked if an error occurs while generating the response or sending the response; in that case, the error
-        ## argument will be a subclass of +Exception+.
-        ## The callables are invoked with +env, status, headers, error+ arguments and should not raise any
-        ## exceptions. They should be invoked in reverse order of registration.
+        ##                                   processed. This would typically be invoked after sending the response to
+        ##                                   the client, but it could also be invoked if an error occurs while
+        ##                                   generating the response or sending the response; in that case, the error
+        ##                                   argument will be a subclass of +Exception+.
+        ##                                   The callables are invoked with +env, status, headers, error+ arguments and
+        ##                                   should not raise any exceptions. They should be invoked in reverse order
+        ##                                   of registration.
         if callables = env[RACK_RESPONSE_FINISHED]
           raise LintError, "rack.response_finished must be an array of callable objects" unless callables.is_a?(Array)
 

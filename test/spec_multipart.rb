@@ -744,7 +744,7 @@ content-type: image/jpeg\r
     input = File.read(multipart_file("bad_robots"))
 
     req = Rack::Request.new Rack::MockRequest.env_for("/",
-                      "CONTENT_TYPE" => "multipart/form-data, boundary=1yy3laWhgX31qpiHinh67wJXqKalukEUTvqTzmon",
+                      "CONTENT_TYPE" => "multipart/form-data; boundary=1yy3laWhgX31qpiHinh67wJXqKalukEUTvqTzmon",
                       "CONTENT_LENGTH" => input.size,
                       :input => input)
 
@@ -1049,5 +1049,12 @@ content-type: image/png\r
     f = Tempfile.new("rack-logo")
     f.write(params["image/png"][0])
     f.length.must_equal 26473
+  end
+
+  it "supports ISO-2022-JP-encoded part" do
+    env = Rack::MockRequest.env_for("/", multipart_fixture(:multiple_encodings))
+    params = Rack::Multipart.parse_multipart(env)
+    params["us-ascii"].must_equal("Alice")
+    params["iso-2022-jp"].must_equal("アリス")
   end
 end
